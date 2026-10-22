@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<title>С днём рождения, Варюсик</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik+Bubbles&family=Nunito:wght@400;700;900&family=Caveat:wght@500;700&display=swap">
+<style>
+/* Layout: one full-screen stage; three scenes (intro → catch game → candles) then a postcard over confetti */
+:root {
+  --night: #2b0f26;
+  --night-2: #45173d;
+  --pink: #ff7aa8;
+  --butter: #ffd66b;
+  --mint: #7fe0c3;
+  --cream: #fff4ea;
+  --ink: #3a1430;
+  --display: "Rubik Bubbles", "Nunito", system-ui, sans-serif;
+  --body: "Nunito", system-ui, -apple-system, sans-serif;
+  --hand: "Caveat", "Segoe Print", cursive;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: radial-gradient(120% 80% at 50% 0%, var(--night-2), var(--night) 70%);
+  background-color: var(--night);
+  color: var(--cream);
+  font-family: var(--body);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#stage { position: relative; height: 100%; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.scene {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; text-align: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px;
+}
+h1 {
+  font-family: var(--display); font-weight: 400;
+  font-size: clamp(2.2rem, 10vw, 3.6rem); line-height: 1.05;
+  margin: 0; text-wrap: balance; color: var(--butter);
+  text-shadow: 0 4px 0 var(--pink);
+}
+.lead { margin: 0; max-width: 30ch; font-size: 1.1rem; line-height: 1.5; opacity: .92; }
+.how { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; font-size: .95rem; }
+.how span { background: rgba(255,244,234,.08); border: 1px solid rgba(255,244,234,.18); padding: 6px 12px; border-radius: 999px; }
+button {
+  font: 900 1.15rem var(--body); color: var(--ink);
+  background: var(--butter); border: 0; border-radius: 999px;
+  padding: 14px 30px; cursor: pointer;
+  box-shadow: 0 5px 0 #c99a2a;
+  transition: transform .1s, box-shadow .1s;
+}
+button:active { transform: translateY(4px); box-shadow: 0 1px 0 #c99a2a; }
+button:focus-visible { outline: 3px solid var(--mint); outline-offset: 4px; }
+
+#hud {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 2;
+  padding: 14px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+#hud .row { display: flex; justify-content: space-between; font-weight: 900; font-size: 1rem; font-variant-numeric: tabular-nums; }
+#bar { height: 12px; background: rgba(255,244,234,.12); border-radius: 999px; overflow: hidden; }
+#fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--pink), var(--butter)); transition: width .25s; }
+#toast {
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%,-50%);
+  font-family: var(--display); font-size: 2rem; color: var(--mint);
+  pointer-events: none; opacity: 0; transition: opacity .3s; z-index: 3; white-space: nowrap;
+}
+
+/* candles */
+#cakeWrap { position: relative; width: min(300px, 80vw); }
+#cake { width: 100%; height: auto; display: block; }
+.flame { cursor: pointer; transform-origin: center bottom; animation: flicker .25s infinite alternate; }
+.flame.out { animation: none; opacity: 0; transition: opacity .3s; }
+@keyframes flicker { from { transform: scale(1,1); } to { transform: scale(.9,1.12); } }
+
+/* postcard */
+#card {
+  position: relative; z-index: 2;
+  width: min(420px, 100%);
+  background: var(--cream); color: var(--ink);
+  border-radius: 18px; padding: 28px 24px 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.45);
+  transform: scale(.4) rotate(-8deg); opacity: 0;
+  transition: transform .7s cubic-bezier(.2,1.5,.4,1), opacity .4s;
+  text-align: left;
+  max-height: calc(100% - 40px); overflow-y: auto;
+}
+#card.show { transform: scale(1) rotate(-1.5deg); opacity: 1; }
+#card .stamp {
+  position: absolute; top: 14px; right: 14px; width: 58px; height: 68px;
+  border: 3px dashed var(--pink); border-radius: 6px;
+  display: grid; place-items: center; font-family: var(--display); color: var(--pink); font-size: 1.5rem;
+  transform: rotate(6deg);
+}
+#card h2 { font-family: var(--display); font-weight: 400; color: var(--pink); font-size: 2rem; margin: 0 70px 12px 0; line-height: 1.1; }
+#card p { font-family: var(--hand); font-size: 1.45rem; line-height: 1.3; margin: 0 0 10px; }
+#card .sign { text-align: right; font-weight: 700; margin-top: 14px; }
+#again { margin-top: 6px; font-size: .95rem; padding: 10px 20px; background: var(--mint); box-shadow: 0 4px 0 #3fa688; }
+
+@media (prefers-reduced-motion: reduce) {
+  .flame { animation: none; }
+  #card { transition: opacity .3s; transform: none; }
+}
+</style>
+
+<style>
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); box-sizing: border-box; height: 100%; }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <section class="scene" id="intro">
+    <h1>Варюсик,<br>это тебе!</h1>
+    <p class="lead">Сегодня твой день, а подарки разлетелись. Поймай 20 штук, и тебя ждёт сюрприз.</p>
+    <div class="how"><span>🎁 🧁 🎈 ловить</span><span>🌧 уворачиваться</span></div>
+    <button id="startBtn">Играть</button>
+  </section>
+
+  <div id="hud" hidden>
+    <div class="row"><span id="count">0 / 20</span><span id="lives">❤️❤️❤️</span></div>
+    <div id="bar"><div id="fill"></div></div>
+  </div>
+  <div id="toast"></div>
+
+  <section class="scene" id="lose" hidden>
+    <h1>Ой, тучка!</h1>
+    <p class="lead">Дождик намочил подарки. Но день рождения от этого не отменяется.</p>
+    <button id="retryBtn">Ещё разок</button>
+  </section>
+
+  <section class="scene" id="candles" hidden>
+    <h1>Почти всё!</h1>
+    <p class="lead">Загадай желание и задуй свечки: тапни по каждому огоньку.</p>
+    <div id="cakeWrap">
+      <svg id="cake" viewBox="0 0 300 260" aria-label="Торт со свечками">
+        <ellipse cx="150" cy="238" rx="135" ry="16" fill="#1c0918" opacity=".5"/>
+        <rect x="35" y="150" width="230" height="85" rx="14" fill="#ff7aa8"/>
+        <rect x="35" y="150" width="230" height="26" rx="13" fill="#fff4ea"/>
+        <path d="M35 168 q15 22 30 0 q15 22 30 0 q15 22 30 0 q15 22 30 0 q15 22 30 0 q15 22 30 0 q15 22 30 0 q12 18 25 0" fill="#fff4ea"/>
+        <rect x="65" y="95" width="170" height="60" rx="12" fill="#ffd66b"/>
+        <rect x="65" y="95" width="170" height="18" rx="9" fill="#fff4ea"/>
+        <g fill="#7fe0c3">
+          <circle cx="80" cy="205" r="5"/><circle cx="130" cy="215" r="5"/><circle cx="180" cy="205" r="5"/><circle cx="230" cy="215" r="5"/>
+          <circle cx="100" cy="135" r="4"/><circle cx="150" cy="140" r="4"/><circle cx="200" cy="135" r="4"/>
+        </g>
+        <g id="candleGroup"></g>
+      </svg>
+    </div>
+  </section>
+
+  <section class="scene" id="final" hidden>
+    <article id="card">
+      <div class="stamp">🎂</div>
+      <h2>С днём рождения, Варюсик!</h2>
+      <p>Ты умничка: все подарки пойманы, все свечки задуты, а значит желание точно сбудется.</p>
+      <p>Желаю тебе много света, тёплых людей рядом, смелых планов и чтобы каждый день звучал как любимая песня.</p>
+      <p>Обнимаю крепко-крепко!</p>
+      <p class="sign">Твоя Юля 💛</p>
+    </article>
+    <button id="again">Сыграть ещё раз</button>
+  </section>
+</div>
+
+<script>
+(() => {
+  const GOAL = 20;
+  const GOOD = ["🎁", "🧁", "🎈", "🍰", "🌸", "⭐"];
+  const BAD = "🌧";
+  const cv = document.getElementById("game");
+  const ctx = cv.getContext("2d");
+  const $ = id => document.getElementById(id);
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let W = 0, H = 0, dpr = 1;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  addEventListener("resize", resize); resize();
+
+  // background sparkles, always running
+  const stars = Array.from({ length: 50 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.6 + .4, p: Math.random() * 6 }));
+
+  let mode = "idle"; // idle | play | confetti
+  let items = [], score = 0, lives = 3, spawnT = 0, last = 0, elapsed = 0;
+  const player = { x: 0.5, w: 84, h: 56 };
+  let confetti = [];
+
+  function show(id) {
+    for (const s of ["intro", "lose", "candles", "final"]) $(s).hidden = s !== id;
+  }
+
+  function toast(text, color) {
+    const t = $("toast");
+    t.textContent = text; t.style.color = color || "var(--mint)";
+    t.style.opacity = 1;
+    clearTimeout(toast.h); toast.h = setTimeout(() => t.style.opacity = 0, 650);
+  }
+
+  function startGame() {
+    items = []; score = 0; lives = 3; spawnT = 0; elapsed = 0;
+    player.x = 0.5;
+    updateHud();
+    show(null); $("hud").hidden = false;
+    mode = "play";
+  }
+
+  function updateHud() {
+    $("count").textContent = `${score} / ${GOAL}`;
+    $("lives").textContent = "❤️".repeat(lives) + "🤍".repeat(3 - lives);
+    $("fill").style.width = (score / GOAL * 100) + "%";
+  }
+
+  function spawn() {
+    const bad = Math.random() < Math.min(0.18 + elapsed / 120, 0.32);
+    const speed = (H * 0.28) + Math.random() * H * 0.12 + Math.min(elapsed, 30) * 4;
+    items.push({
+      x: 30 + Math.random() * (W - 60), y: -40,
+      vy: speed, e: bad ? BAD : GOOD[Math.floor(Math.random() * GOOD.length)],
+      bad, rot: (Math.random() - .5) * .6, wob: Math.random() * 6
+    });
+  }
+
+  // controls: drag anywhere, or arrow keys
+  function pointerX(e) { player.x = Math.max(0, Math.min(1, e.clientX / W)); }
+  cv.addEventListener("pointerdown", e => { if (mode === "play") pointerX(e); });
+  cv.addEventListener("pointermove", e => { if (mode === "play") pointerX(e); });
+  const keys = {};
+  addEventListener("keydown", e => keys[e.key] = true);
+  addEventListener("keyup", e => keys[e.key] = false);
+
+  function drawBasket(x, y) {
+    const w = player.w, h = player.h;
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = "#ff7aa8";
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(w / 2, -h / 2);
+    ctx.lineTo(w / 2 - 10, h / 2); ctx.lineTo(-w / 2 + 10, h / 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#ffd66b";
+    ctx.fillRect(-w / 2 - 4, -h / 2 - 8, w + 8, 12);
+    ctx.strokeStyle = "rgba(58,20,48,.35)"; ctx.lineWidth = 3;
+    for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(i * 20, -h / 2 + 6); ctx.lineTo(i * 16, h / 2 - 4); ctx.stroke(); }
+    ctx.fillStyle = "#fff4ea"; ctx.font = "900 13px Nunito, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("Варя", 0, 10);
+    ctx.restore();
+  }
+
+  function burst(n, y) {
+    const colors = ["#ff7aa8", "#ffd66b", "#7fe0c3", "#fff4ea"];
+    for (let i = 0; i < n; i++) confetti.push({
+      x: Math.random() * W, y: y ?? -20 - Math.random() * H * .5,
+      vx: (Math.random() - .5) * 80, vy: 60 + Math.random() * 160,
+      s: 5 + Math.random() * 7, r: Math.random() * 6, vr: (Math.random() - .5) * 8,
+      c: colors[i % colors.length]
+    });
+  }
+
+  function frame(t) {
+    const dt = Math.min((t - last) / 1000 || 0, 0.05); last = t;
+    ctx.clearRect(0, 0, W, H);
+
+    for (const s of stars) {
+      ctx.globalAlpha = .35 + .35 * Math.sin(t / 700 + s.p);
+      ctx.fillStyle = "#fff4ea";
+      ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.r, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    if (mode === "play") {
+      elapsed += dt;
+      if (keys.ArrowLeft) player.x -= dt * 1.2;
+      if (keys.ArrowRight) player.x += dt * 1.2;
+      player.x = Math.max(0, Math.min(1, player.x));
+
+      spawnT -= dt;
+      if (spawnT <= 0) { spawn(); spawnT = Math.max(0.45, 0.9 - elapsed / 60); }
+
+      const px = 40 + player.x * (W - 80), py = H - 70;
+      const size = Math.max(34, Math.min(W / 10, 46));
+      ctx.font = `${size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+
+      for (let i = items.length - 1; i >= 0; i--) {
+        const it = items[i];
+        it.y += it.vy * dt;
+        const x = it.x + Math.sin(t / 300 + it.wob) * 6;
+        ctx.save(); ctx.translate(x, it.y); ctx.rotate(it.rot); ctx.fillText(it.e, 0, 0); ctx.restore();
+
+        if (it.y > py - 40 && it.y < py + 10 && Math.abs(x - px) < player.w / 2 + 8) {
+          items.splice(i, 1);
+          if (it.bad) {
+            lives--; toast("Брр, дождик!", "#9ec8ff");
+            if (navigator.vibrate) try { navigator.vibrate(80); } catch (_) {}
+          } else {
+            score++;
+            const cheers = ["Ура!", "Есть!", "+1", "Ловко!", "Ещё!"];
+            if (score % 5 === 0) toast(["Супер!", "Огонь!", "Почти!"][score / 5 - 1] || "Ура!");
+            else if (Math.random() < .25) toast(cheers[Math.floor(Math.random() * cheers.length)]);
+          }
+          updateHud();
+          if (lives <= 0) { mode = "idle"; items = []; $("hud").hidden = true; show("lose"); }
+          else if (score >= GOAL) { mode = "idle"; items = []; $("hud").hidden = true; burst(60); toCandles(); }
+        } else if (it.y > H + 50) items.splice(i, 1);
+      }
+      drawBasket(px, py);
+    }
+
+    for (let i = confetti.length - 1; i >= 0; i--) {
+      const c = confetti[i];
+      c.x += c.vx * dt; c.y += c.vy * dt; c.r += c.vr * dt;
+      ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.r);
+      ctx.fillStyle = c.c; ctx.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); ctx.restore();
+      if (c.y > H + 20) confetti.splice(i, 1);
+    }
+    if (mode === "confetti" && !reduce && confetti.length < 120) burst(3);
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // candles scene
+  const CANDLES = 3;
+  function toCandles() {
+    const g = $("candleGroup");
+    g.innerHTML = "";
+    const colors = ["#7fe0c3", "#ff7aa8", "#fff4ea"];
+    let left = CANDLES;
+    for (let i = 0; i < CANDLES; i++) {
+      const cx = 105 + i * 45;
+      g.insertAdjacentHTML("beforeend",
+        `<rect x="${cx - 6}" y="45" width="12" height="52" rx="4" fill="${colors[i]}"/>
+         <line x1="${cx}" y1="45" x2="${cx}" y2="37" stroke="#3a1430" stroke-width="2"/>
+         <g class="flame" data-i="${i}" role="button" tabindex="0" aria-label="Огонёк ${i + 1}">
+           <circle cx="${cx}" cy="22" r="22" fill="transparent"/>
+           <path d="M${cx} 8 C${cx + 10} 20 ${cx + 9} 34 ${cx} 36 C${cx - 9} 34 ${cx - 10} 20 ${cx} 8Z" fill="#ffd66b"/>
+           <path d="M${cx} 18 C${cx + 5} 25 ${cx + 4} 32 ${cx} 33 C${cx - 4} 32 ${cx - 5} 25 ${cx} 18Z" fill="#ff9f43"/>
+         </g>`);
+    }
+    g.querySelectorAll(".flame").forEach(f => {
+      const blow = () => {
+        if (f.classList.contains("out")) return;
+        f.classList.add("out");
+        left--;
+        if (left === 0) setTimeout(toFinal, 500);
+      };
+      f.addEventListener("pointerdown", blow);
+      f.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") blow(); });
+    });
+    setTimeout(() => show("candles"), 400);
+  }
+
+  function toFinal() {
+    show("final");
+    mode = "confetti";
+    burst(140);
+    const card = $("card");
+    card.classList.remove("show");
+    requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add("show")));
+  }
+
+  $("startBtn").addEventListener("click", startGame);
+  $("retryBtn").addEventListener("click", startGame);
+  $("again").addEventListener("click", () => { confetti = []; startGame(); });
+})();
+</script>
+<script>
+(() => {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (!tg) return;
+  try {
+    tg.ready();
+    tg.expand();
+    if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+    if (tg.setHeaderColor) tg.setHeaderColor("#2b0f26");
+    if (tg.setBackgroundColor) tg.setBackgroundColor("#2b0f26");
+  } catch (_) {}
+})();
+</script>
+</body>
+</html>
